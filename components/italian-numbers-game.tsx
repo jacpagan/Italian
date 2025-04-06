@@ -2,13 +2,14 @@
 
 import type React from "react"
 
-import { useRef } from "react"
+import { useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Check, X, RefreshCw, Volume2, RotateCcw } from "lucide-react"
+import { Check, X, RefreshCw, Volume2, RotateCcw, AlertCircle, History } from "lucide-react"
 import ObjectsDisplay from "@/components/objects-display"
 import { LearningRules } from "@/components/learning-rules"
+import { ProgressDashboard } from "@/components/progress-dashboard"
 import { useGame } from "@/lib/contexts/game-context"
 
 export default function ItalianNumbersGame() {
@@ -27,15 +28,24 @@ export default function ItalianNumbersGame() {
     setShowHint,
     speakNumber,
     getHint,
+    isInputValid,
+    isSubmitting,
   } = useGame()
 
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && userAnswer.trim() !== "" && isInputValid && !isSubmitting) {
       checkAnswer()
     }
   }
+
+  // Auto-focus input when answer is correct or when a new number is generated
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [gameState.currentNumber, isCorrect])
 
   return (
     <div className="space-y-6">
@@ -44,11 +54,16 @@ export default function ItalianNumbersGame() {
       <Card>
         <CardHeader className="pb-2">
           <div className="flex justify-between items-center">
-            <CardTitle className="text-xl">
-              Italian Cardinal Numbers
-              {gameState.isReviewMode && <span className="ml-2 text-sm text-orange-500">(Review)</span>}
-            </CardTitle>
-            {reviewCount > 0 && <div className="text-sm text-gray-500">Review items: {reviewCount}</div>}
+            <CardTitle className="text-xl">Italian Cardinal Numbers</CardTitle>
+            <div className="flex items-center space-x-2">
+              {gameState.attemptCount > 0 && (
+                <div className="text-sm text-gray-500 flex items-center">
+                  <History className="h-4 w-4 mr-1" />
+                  Attempts: {gameState.attemptCount}
+                </div>
+              )}
+              {/* Review count removed as requested */}
+            </div>
           </div>
         </CardHeader>
 
@@ -66,25 +81,41 @@ export default function ItalianNumbersGame() {
 
           <div className="space-y-4">
             <div className="flex gap-2">
-              <Input
-                ref={inputRef}
-                type="text"
-                placeholder={showTypeCorrectionMode ? "Type the correct answer..." : "Type the Italian word..."}
-                value={userAnswer}
-                onChange={(e) => setUserAnswer(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className={`text-lg ${
-                  isCorrect === true ? "border-green-500" : isCorrect === false ? "border-red-500" : ""
-                }`}
-              />
+              <div className="relative flex-1">
+                <Input
+                  ref={inputRef}
+                  type="text"
+                  placeholder={showTypeCorrectionMode ? "Type the correct answer..." : "Type the Italian word..."}
+                  value={userAnswer}
+                  onChange={(e) => setUserAnswer(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className={`text-lg ${
+                    isCorrect === true ? "border-green-500" : isCorrect === false ? "border-red-500" : ""
+                  } ${!isInputValid ? "border-yellow-500" : ""}`}
+                  aria-invalid={!isInputValid}
+                  disabled={isSubmitting}
+                />
+                {!isInputValid && userAnswer.length > 0 && (
+                  <div className="absolute right-2 top-1/2 transform -translate-y-1/2 text-yellow-500">
+                    <AlertCircle className="h-5 w-5" />
+                  </div>
+                )}
+              </div>
               <Button onClick={speakNumber} variant="outline" size="icon" title="Hear pronunciation">
                 <Volume2 className="h-5 w-5" />
               </Button>
             </div>
 
+            {!isInputValid && userAnswer.length > 0 && (
+              <div className="text-yellow-600 text-sm">
+                Please use only letters (Italian words don't contain numbers or special characters)
+              </div>
+            )}
+
             {isCorrect === true && (
               <div className="flex items-center text-green-600">
-                <Check className="mr-2" /> Correct!
+                <Check className="mr-2" /> Correct! <span className="ml-1 italic">{gameState.correctAnswer}</span> -
+                Moving to next number...
               </div>
             )}
 
@@ -119,6 +150,7 @@ export default function ItalianNumbersGame() {
                 size="sm"
                 onClick={() => setDifficulty("easy")}
                 className={difficulty === "easy" ? "bg-primary text-primary-foreground" : ""}
+                disabled={isSubmitting}
               >
                 1-20
               </Button>
@@ -127,6 +159,7 @@ export default function ItalianNumbersGame() {
                 size="sm"
                 onClick={() => setDifficulty("medium")}
                 className={difficulty === "medium" ? "bg-primary text-primary-foreground" : ""}
+                disabled={isSubmitting}
               >
                 1-100
               </Button>
@@ -135,22 +168,31 @@ export default function ItalianNumbersGame() {
                 size="sm"
                 onClick={() => setDifficulty("hard")}
                 className={difficulty === "hard" ? "bg-primary text-primary-foreground" : ""}
+                disabled={isSubmitting}
               >
                 1-1000
               </Button>
             </div>
             <div className="space-x-2">
-              <Button variant="outline" onClick={() => setShowHint(true)} disabled={showHint || showTypeCorrectionMode}>
+              <Button
+                variant="outline"
+                onClick={() => setShowHint(true)}
+                disabled={showHint || showTypeCorrectionMode || isSubmitting}
+              >
                 Hint
               </Button>
-              <Button onClick={checkAnswer}>{showTypeCorrectionMode ? "Verify" : "Check"}</Button>
-              <Button variant="outline" onClick={generateNewNumber}>
+              <Button onClick={checkAnswer} disabled={userAnswer.trim() === "" || !isInputValid || isSubmitting}>
+                {showTypeCorrectionMode ? "Verify" : "Check"}
+              </Button>
+              <Button variant="outline" onClick={generateNewNumber} disabled={isSubmitting}>
                 <RefreshCw className="mr-2 h-4 w-4" /> New
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      <ProgressDashboard />
     </div>
   )
 }

@@ -7,6 +7,7 @@ export default function HomePage() {
       <div className="container max-w-4xl px-4 py-6 mx-auto">
         <header className="text-center mb-6">
           <h1 className="text-3xl font-bold text-gray-800">Learn Italian Cardinal Numbers</h1>
+          <p className="text-gray-600 mt-2">Practice and track your progress with data-driven insights</p>
         </header>
 
         <main>

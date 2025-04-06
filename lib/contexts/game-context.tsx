@@ -3,6 +3,14 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react"
 
+// Initialize speech synthesis voices
+const initSpeechSynthesis = () => {
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    // Some browsers (especially Safari) need this to load voices
+    window.speechSynthesis.getVoices()
+  }
+}
+
 // Core Italian numbers with pedagogically organized structure
 const italianNumbers: Record<string, string> = {
   // Base numbers (foundational vocabulary)
@@ -128,6 +136,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [isInputValid, setIsInputValid] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Add a ref to track if voices have been loaded
+  const voicesLoaded = useRef(false)
+
   // Analytics state
   const [attemptHistory, setAttemptHistory] = useState<AttemptData[]>([])
   const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetrics>({
@@ -224,6 +235,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   // Initialize game
   useEffect(() => {
+    // Initialize speech synthesis
+    initSpeechSynthesis()
+
     generateNewNumber()
 
     // Try to load saved history from localStorage
@@ -401,12 +415,60 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     return answer.substring(0, Math.ceil(answer.length / 3)) + "..."
   }
 
+  // Function to ensure voices are loaded
+  const ensureVoicesLoaded = () => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return Promise.resolve([])
+
+    const voices = window.speechSynthesis.getVoices()
+    if (voices.length > 0) {
+      voicesLoaded.current = true
+      return Promise.resolve(voices)
+    }
+
+    return new Promise<SpeechSynthesisVoice[]>((resolve) => {
+      const voicesChangedHandler = () => {
+        const voices = window.speechSynthesis.getVoices()
+        voicesLoaded.current = true
+        resolve(voices)
+        window.speechSynthesis.removeEventListener("voiceschanged", voicesChangedHandler)
+      }
+
+      window.speechSynthesis.addEventListener("voiceschanged", voicesChangedHandler)
+    })
+  }
+
   // Authentic pronunciation
   const speakNumber = () => {
     if (typeof window !== "undefined" && window.speechSynthesis) {
       const utterance = new SpeechSynthesisUtterance(gameState.correctAnswer)
       utterance.lang = "it-IT"
-      window.speechSynthesis.speak(utterance)
+
+      // If voices are already loaded, use them directly
+      if (voicesLoaded.current) {
+        const voices = window.speechSynthesis.getVoices()
+        const italianVoice = voices.find(
+          (voice) => voice.lang.includes("it-IT") || voice.lang.includes("it_IT") || voice.lang.includes("ita"),
+        )
+
+        if (italianVoice) {
+          utterance.voice = italianVoice
+        }
+
+        window.speechSynthesis.speak(utterance)
+      } else {
+        // Otherwise, ensure voices are loaded first
+        ensureVoicesLoaded().then((voices) => {
+          const italianVoice = voices.find(
+            (voice) => voice.lang.includes("it-IT") || voice.lang.includes("it_IT") || voice.lang.includes("ita"),
+          )
+
+          if (italianVoice) {
+            utterance.voice = italianVoice
+          }
+
+          window.speechSynthesis.speak(utterance)
+        })
+      }
     }
   }
 
